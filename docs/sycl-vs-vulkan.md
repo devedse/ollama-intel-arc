@@ -58,30 +58,43 @@ Builds `ggml-sycl` from the exact llama.cpp commit that Ollama vendors, using In
 
 #### How the Source Build Works
 
-Ollama ships the `ggml-sycl.h` header but intentionally excludes the SYCL implementation from its vendored ggml. The source build fills that gap:
+Ollama ships the `ggml-sycl.h` header but intentionally excludes the SYCL implementation from its vendored ggml. The source build fills that gap. See [`tmp/Dockerfile`](../tmp/Dockerfile) for the full multi-stage build.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Stage 1: Build  (intel/oneapi-basekit)                 │
+│  Stage 1: Build  (intel/oneapi-basekit:2025.1.1)        │
 │                                                         │
-│  ollama source ─────────┐                               │
+│  ollama v0.15.6 source ─┐                               │
 │                         ├── cmake + icpx ── libggml-sycl.so
-│  ggml-sycl @ <commit> ──┘                               │
+│  ggml-sycl @ a5bb8ba4 ──┘                               │
 │        ▲                                                │
 │        └── patch-sycl.py (2 API fixes)                  │
 ├─────────────────────────────────────────────────────────┤
 │  Stage 2: Runtime  (ubuntu:24.04)                       │
 │                                                         │
-│  ollama binary (official)                               │
+│  ollama binary (official v0.15.6)                       │
 │  + libggml-sycl.so + oneAPI runtime libs                │
 │  + Intel GPU drivers (Level-Zero, IGC, compute-runtime) │
 └─────────────────────────────────────────────────────────┘
 ```
 
-The `ggml-sycl` source is fetched from the **exact llama.cpp commit** that Ollama vendors, ensuring ABI compatibility. Two small patches are applied:
+**Stage 1** clones the Ollama source and fetches `ggml-sycl` from the **exact llama.cpp commit** (`a5bb8ba4`) that Ollama vendors, ensuring ABI compatibility. Then [`patch-sycl.py`](../tmp/patch-sycl.py) applies two fixes:
 
-1. **`graph_compute` signature** — Ollama adds an `int batch_size` parameter not present upstream
-2. **`GGML_TENSOR_FLAG_COMPUTE` removal** — Ollama drops this enum; without the patch, every compute node gets skipped, producing garbage output
+1. **`graph_compute` signature** — Ollama adds an `int batch_size` parameter not present upstream. The patch adds the parameter and a `GGML_UNUSED(batch_size)` to suppress warnings.
+2. **`GGML_TENSOR_FLAG_COMPUTE` removal** — Ollama drops this enum from `ggml.h`. Without the patch, the flag check in the compute loop evaluates to false for every node (since the bit is never set), causing **all compute nodes to be skipped** and producing garbage output.
+
+After patching, `cmake` builds `libggml-sycl.so` using Intel's `icpx` compiler with `GGML_SYCL=ON`. The build collects the compiled library plus oneAPI runtime dependencies (SYCL runtime, oneMKL, oneDNN, TBB, Level-Zero adapters) into a minimal `/sycl-runner` directory.
+
+**Stage 2** starts from a clean `ubuntu:24.04`, installs the Intel GPU drivers (same versions as [`ipex-ollama/Dockerfile`](../ipex-ollama/Dockerfile)), downloads the official Ollama binary, and copies in the SYCL runner from Stage 1. The result is a standard Ollama install that transparently uses the SYCL backend for Intel GPUs.
+
+#### Updating to a New Ollama Version
+
+To track a new Ollama release:
+
+1. Update `OLLAMA_VERSION` in `tmp/Dockerfile`
+2. Find the ggml commit Ollama vendors: `git log --oneline ollama/ml/backend/ggml/ggml/` in the Ollama source
+3. Update `GGML_COMMIT` to match
+4. Rebuild — `patch-sycl.py` will verify the patches still apply, and exit with an error if they don't
 
 ### Option 3: Upstream Ollama + Vulkan
 
