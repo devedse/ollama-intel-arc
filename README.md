@@ -56,7 +56,7 @@ All these containers have been optimized for Intel Arc Series GPUs on Linux syst
 
 5. OpenAI Whisper
    * Robust Speech Recognition via Large-Scale Weak Supervision
-   * Uses as the base container the official [Intel® Extension for PyTorch](* Uses as the base container the official [Intel® Extension for PyTorch](https://pytorch-extension.intel.com/installation?platform=gpu)
+   * Uses as the base container the official [Intel® Extension for PyTorch](https://pytorch-extension.intel.com/installation?platform=gpu)
 
 ## Setup
 Run the following commands to start your Ollama instance with Open WebUI
@@ -102,6 +102,12 @@ When using Open WebUI, you should see this partial output in your console, indic
 [ollama-intel-arc] | |ID|        Device Type|                                   Name|Version|units  |group   |group|size   |       Driver version|
 [ollama-intel-arc] | |--|-------------------|---------------------------------------|-------|-------|--------|-----|-------|---------------------|
 [ollama-intel-arc] | | 0| [level_zero:gpu:0]|                     Intel Arc Graphics|  12.71|    128|    1024|   32| 62400M|         1.6.32224+14|
+```
+
+For the **SYCL-from-source** build (`docker-compose.sycl-ollama.yml`), you should see:
+```bash
+[sycl-ollama] | Listening on [::]:11434 (version 0.16.1)
+[sycl-ollama] | inference compute  id="" library="" name=SYCL0 description="Intel(R) Arc(TM) Graphics" type=discrete total="28.0 GiB"
 ```
 
 ## Using Image Generation
@@ -205,7 +211,7 @@ $ /llm/ollama/ollama -v
 │
 ├── sycl-ollama/                      # SYCL-from-source build (Ollama v0.16.1)
 │   ├── Dockerfile                    # Multi-stage: oneAPI build → minimal runtime
-│   ├── patch-sycl.py                 # Patches ggml-sycl for Ollama API compatibility
+│   ├── patch-sycl.py                 # API compat patches (no-op since v0.16.1)
 │   ├── start-ollama.sh               # Legacy entrypoint (from IPEX-LLM era)
 │   └── test-glm-ocr.sh              # Vision model test script (glm-ocr)
 │

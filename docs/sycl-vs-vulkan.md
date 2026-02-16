@@ -27,7 +27,7 @@ Both backends run on Intel GPUs, but SYCL has a significant speed advantage:
 - **No build step required** — upstream Ollama ships Vulkan support out of the box (`OLLAMA_VULKAN=1`)
 - **Cross-vendor** — same backend works on AMD, NVIDIA, and Intel
 - **Smaller image** — no oneAPI runtime libraries needed (~2 GB smaller)
-- **Latest Ollama features** — upstream Ollama (v0.16.1) vs patched SYCL build
+- **No custom build** — upstream Ollama ships Vulkan pre-built, no compilation step needed
 - **Kernel 6.18+ compatibility** — Vulkan avoids the known Level-Zero regression on kernel 6.18+
 
 ## Backend Options in This Repo
@@ -172,7 +172,7 @@ To track a new Ollama release:
 1. Update `OLLAMA_VERSION` in `sycl-ollama/Dockerfile`
 2. Find the ggml commit Ollama vendors: `git log --oneline ollama/ml/backend/ggml/ggml/` in the Ollama source
 3. Update `GGML_COMMIT` to match
-4. Rebuild — `patch-sycl.py` will verify the patches still apply, and exit with an error if they don't
+4. Rebuild — `patch-sycl.py` will auto-detect whether patches are needed and apply them if so (exits cleanly when no patches are required)
 
 ### Option 3: Upstream Ollama + Vulkan
 
