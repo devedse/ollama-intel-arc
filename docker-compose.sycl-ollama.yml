@@ -23,6 +23,15 @@ services:
 
     environment:
       # ───────────────────────────────────────────────────────────────
+      # Proxy bypass — prevents corporate/system HTTP proxies from
+      # intercepting container-to-container and localhost traffic.
+      # Without this, model downloads may work but inter-service
+      # calls (Open WebUI → Ollama) can silently fail or time out.
+      # ───────────────────────────────────────────────────────────────
+      - no_proxy=${no_proxy:-localhost,127.0.0.1,sycl-ollama,open-webui-sycl}
+      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,sycl-ollama,open-webui-sycl}
+
+      # ───────────────────────────────────────────────────────────────
       # Ollama server & runtime behavior
       # ───────────────────────────────────────────────────────────────
       - OLLAMA_HOST=0.0.0.0
@@ -66,6 +75,10 @@ services:
       - ${OLLAMA_WEBUI_PORT:-4040}:8080
     environment:
       - OLLAMA_BASE_URL=http://sycl-ollama:11434
+
+      # Proxy bypass (see Ollama service for explanation)
+      - no_proxy=${no_proxy:-localhost,127.0.0.1,sycl-ollama,open-webui-sycl}
+      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,sycl-ollama,open-webui-sycl}
 
       - WEBUI_AUTH=False
       - ENABLE_OPENAI_API=False
