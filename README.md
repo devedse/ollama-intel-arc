@@ -27,7 +27,7 @@ All these containers have been optimized for Intel Arc Series GPUs on Linux syst
 * **[SYCL vs Vulkan — GPU Backend Comparison](docs/sycl-vs-vulkan.md)** — performance benchmarks (SYCL is 40–100% faster), three backend options (IPEX-LLM bundle, SYCL from source, upstream Vulkan), how `patch-sycl.py` works, and troubleshooting.
 * **[Intel Arc A770 Context Length & VRAM Guide](docs/intel-arc-a770-context-limits.md)** — how to choose context length, KV cache quantization, and model size for 16 GB Intel Arc GPUs. Includes VRAM budget tables, per-model recommendations, and environment variable reference.
 * **[Custom IPEX-LLM Dockerfile](ipex-ollama/Dockerfile)** — build your own Ollama image from scratch with pinned Intel GPU runtimes (Level Zero, IGC, compute-runtime) and the IPEX-LLM portable bundle. Uses BuildKit cache mounts for fast rebuilds.
-* **[SYCL Source Build Dockerfile](sycl-ollama/Dockerfile)** — multi-stage build that compiles `ggml-sycl` from source with Intel oneAPI, paired with the official Ollama v0.15.6 binary. Uses [`patch-sycl.py`](sycl-ollama/patch-sycl.py) to fix two API divergences between upstream llama.cpp and Ollama's vendored ggml.
+* **[SYCL Source Build Dockerfile](sycl-ollama/Dockerfile)** — multi-stage build that compiles `ggml-sycl` from source with Intel oneAPI, paired with the official Ollama v0.16.1 binary. Includes [`patch-sycl.py`](sycl-ollama/patch-sycl.py) for backward-compatible API patching (no patches needed as of v0.16.1).
 * **[docker-compose.yml](docker-compose.yml)** — fully documented Compose file with env-var driven configuration. All Intel GPU tuning knobs (SYCL, XeTLA, SDP fusion, KV cache, flash attention) are configurable via `${VAR:-default}` syntax and a `.env` file.
 
 ## Services
@@ -203,7 +203,7 @@ $ /llm/ollama/ollama -v
 ├── ipex-ollama/
 │   └── Dockerfile                    # IPEX-LLM bundle build (Ollama v0.9.3, SYCL)
 │
-├── sycl-ollama/                      # SYCL-from-source build (Ollama v0.15.6)
+├── sycl-ollama/                      # SYCL-from-source build (Ollama v0.16.1)
 │   ├── Dockerfile                    # Multi-stage: oneAPI build → minimal runtime
 │   ├── patch-sycl.py                 # Patches ggml-sycl for Ollama API compatibility
 │   ├── start-ollama.sh               # Legacy entrypoint (from IPEX-LLM era)

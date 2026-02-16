@@ -3,13 +3,13 @@
 # =============================================================================
 FROM intel/oneapi-basekit:2025.1.1-0-devel-ubuntu24.04 AS sycl-builder
 
-ARG OLLAMA_VERSION=0.15.6
+ARG OLLAMA_VERSION=0.16.1
 
 # Clone ollama source and the MATCHING ggml-sycl source from upstream llama.cpp.
-# ollama v0.15.6 vendors ggml at commit a5bb8ba4 — we MUST use the same commit
-# to ensure struct layouts, operation enums, and internal APIs match exactly.
+# ollama v0.16.1 vendors ggml at commit ec98e200 (tag b7437) — we MUST use the
+# same commit to ensure struct layouts, operation enums, and internal APIs match.
 # (ollama excludes ggml-sycl from its vendored ggml, but keeps the header)
-ARG GGML_COMMIT=a5bb8ba4c50257437630c136210396810741bbf7
+ARG GGML_COMMIT=ec98e20021f7611db3bbcf6bb6629fed6e1ce4f0
 RUN git clone --depth 1 --branch v${OLLAMA_VERSION} \
   https://github.com/ollama/ollama.git /ollama && \
   git init /tmp/llama.cpp && \
@@ -24,9 +24,11 @@ RUN git clone --depth 1 --branch v${OLLAMA_VERSION} \
 
 WORKDIR /ollama
 
-# Patch ggml-sycl to match ollama's modified ggml backend API:
-# 1. graph_compute has an extra int batch_size parameter in ollama
-# 2. GGML_TENSOR_FLAG_COMPUTE doesn't exist in ollama's ggml
+# Apply API compatibility patches if needed.
+# As of v0.16.1, the upstream ggml-sycl and ollama's vendored ggml have converged:
+# - graph_compute now includes 'int batch_size' in both
+# - GGML_TENSOR_FLAG_COMPUTE has been removed from both
+# The patch script exits gracefully (code 0) when no changes are needed.
 COPY patch-sycl.py /tmp/patch-sycl.py
 RUN python3 /tmp/patch-sycl.py ml/backend/ggml/ggml/src/ggml-sycl/ggml-sycl.cpp
 
@@ -104,7 +106,7 @@ RUN mkdir -p /tmp/gpu && cd /tmp/gpu && \
   dpkg -i *.deb *.ddeb && rm -rf /tmp/gpu
 
 # Install official ollama binary + CPU runners (skip CUDA/MLX/Vulkan)
-ARG OLLAMA_VERSION=0.15.6
+ARG OLLAMA_VERSION=0.16.1
 RUN wget -qO- "https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst" | \
   zstd -d | tar -xf - -C /usr && \
   rm -rf /usr/lib/ollama/cuda_* /usr/lib/ollama/mlx_* /usr/lib/ollama/vulkan

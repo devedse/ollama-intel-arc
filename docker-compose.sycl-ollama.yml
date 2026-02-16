@@ -4,7 +4,7 @@ services:
       context: sycl-ollama
       dockerfile: Dockerfile
       args:
-        OLLAMA_VERSION: "0.15.6"
+        OLLAMA_VERSION: "0.16.1"
     image: sycl-ollama:local
     container_name: sycl-ollama
     restart: unless-stopped
