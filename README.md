@@ -27,7 +27,7 @@ All these containers have been optimized for Intel Arc Series GPUs on Linux syst
 * **[SYCL vs Vulkan — GPU Backend Comparison](docs/sycl-vs-vulkan.md)** — performance benchmarks (SYCL is 40–100% faster), three backend options (IPEX-LLM bundle, SYCL from source, upstream Vulkan), how `patch-sycl.py` works, and troubleshooting.
 * **[Intel Arc A770 Context Length & VRAM Guide](docs/intel-arc-a770-context-limits.md)** — how to choose context length, KV cache quantization, and model size for 16 GB Intel Arc GPUs. Includes VRAM budget tables, per-model recommendations, and environment variable reference.
 * **[Custom IPEX-LLM Dockerfile](ipex-ollama/Dockerfile)** — build your own Ollama image from scratch with pinned Intel GPU runtimes (Level Zero, IGC, compute-runtime) and the IPEX-LLM portable bundle. Uses BuildKit cache mounts for fast rebuilds.
-* **[SYCL Source Build Dockerfile](tmp/Dockerfile)** — multi-stage build that compiles `ggml-sycl` from source with Intel oneAPI, paired with the official Ollama v0.15.6 binary. Uses [`patch-sycl.py`](tmp/patch-sycl.py) to fix two API divergences between upstream llama.cpp and Ollama's vendored ggml.
+* **[SYCL Source Build Dockerfile](ollama-sycl/Dockerfile)** — multi-stage build that compiles `ggml-sycl` from source with Intel oneAPI, paired with the official Ollama v0.15.6 binary. Uses [`patch-sycl.py`](ollama-sycl/patch-sycl.py) to fix two API divergences between upstream llama.cpp and Ollama's vendored ggml.
 * **[docker-compose.yml](docker-compose.yml)** — fully documented Compose file with env-var driven configuration. All Intel GPU tuning knobs (SYCL, XeTLA, SDP fusion, KV cache, flash attention) are configurable via `${VAR:-default}` syntax and a `.env` file.
 
 ## Services
@@ -64,6 +64,11 @@ Run the following commands to start your Ollama instance with Open WebUI
 $ git clone https://github.com/eleiton/ollama-intel-arc.git
 $ cd ollama-intel-arc
 $ podman compose up
+```
+
+Alternatively, to use the **SYCL-from-source** build (newer Ollama, faster inference — see [SYCL vs Vulkan](docs/sycl-vs-vulkan.md)):
+```bash
+$ podman compose -f docker-compose.ollama-sycl.yml up --build
 ```
 
 Additionally, if you want to run one or more of the image generation tools, run these command in a different terminal:
@@ -188,32 +193,36 @@ $ /llm/ollama/ollama -v
 
 ```
 .
-├── docker-compose.yml              # Main stack: Ollama (IPEX-LLM) + Open WebUI
-├── docker-compose.comfyui.yml      # ComfyUI image generation
-├── docker-compose.sdnext.yml       # SD.Next image generation
-├── docker-compose.whisper.yml      # OpenAI Whisper speech recognition
-├── docker-compose.ramalama.yml     # RamaLama support
+├── docker-compose.yml                # Main stack: Ollama (IPEX-LLM) + Open WebUI
+├── docker-compose.ollama-sycl.yml    # SYCL-from-source Ollama + Open WebUI (alternative)
+├── docker-compose.comfyui.yml        # ComfyUI image generation
+├── docker-compose.sdnext.yml         # SD.Next image generation
+├── docker-compose.whisper.yml        # OpenAI Whisper speech recognition
+├── docker-compose.ramalama.yml       # RamaLama support
 │
 ├── ipex-ollama/
-│   └── Dockerfile                  # IPEX-LLM bundle build (Ollama v0.9.3, SYCL)
+│   └── Dockerfile                    # IPEX-LLM bundle build (Ollama v0.9.3, SYCL)
 │
-├── tmp/                            # SYCL-from-source build (Ollama v0.15.6)
-│   ├── Dockerfile                  # Multi-stage: oneAPI build → minimal runtime
-│   ├── patch-sycl.py               # Patches ggml-sycl for Ollama API compatibility
-│   ├── docker-compose.yml          # Compose file for the SYCL source build
-│   ├── start-ollama.sh             # Legacy entrypoint (from IPEX-LLM era)
-│   └── test-glm-ocr.sh            # Vision model test script (glm-ocr)
+├── ollama-sycl/                      # SYCL-from-source build (Ollama v0.15.6)
+│   ├── Dockerfile                    # Multi-stage: oneAPI build → minimal runtime
+│   ├── patch-sycl.py                 # Patches ggml-sycl for Ollama API compatibility
+│   ├── start-ollama.sh               # Legacy entrypoint (from IPEX-LLM era)
+│   └── test-glm-ocr.sh              # Vision model test script (glm-ocr)
 │
-├── comfyui/Dockerfile              # ComfyUI with Intel Extension for PyTorch
-├── sdnext/Dockerfile               # SD.Next with Intel Extension for PyTorch
-├── whisper/Dockerfile              # OpenAI Whisper with Intel Extension for PyTorch
-├── ramalama/Dockerfile             # RamaLama container
+├── comfyui/
+│   └── Dockerfile                    # ComfyUI with Intel Extension for PyTorch
+├── sdnext/
+│   └── Dockerfile                    # SD.Next with Intel Extension for PyTorch
+├── whisper/
+│   └── Dockerfile                    # OpenAI Whisper with Intel Extension for PyTorch
+├── ramalama/
+│   └── Dockerfile                    # RamaLama container
 │
 ├── docs/
-│   ├── sycl-vs-vulkan.md           # SYCL vs Vulkan backend comparison
+│   ├── sycl-vs-vulkan.md             # SYCL vs Vulkan backend comparison
 │   └── intel-arc-a770-context-limits.md  # VRAM & context length guide
 │
-└── resources/                      # Screenshots for README
+└── resources/                        # Screenshots for README
 ```
 
 ## My development environment:
