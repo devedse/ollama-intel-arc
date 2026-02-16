@@ -184,6 +184,38 @@ $ podman exec -it ollama-intel-arc /bin/bash
 $ /llm/ollama/ollama -v
 ```
 
+## Project Structure
+
+```
+.
+├── docker-compose.yml              # Main stack: Ollama (IPEX-LLM) + Open WebUI
+├── docker-compose.comfyui.yml      # ComfyUI image generation
+├── docker-compose.sdnext.yml       # SD.Next image generation
+├── docker-compose.whisper.yml      # OpenAI Whisper speech recognition
+├── docker-compose.ramalama.yml     # RamaLama support
+│
+├── ipex-ollama/
+│   └── Dockerfile                  # IPEX-LLM bundle build (Ollama v0.9.3, SYCL)
+│
+├── tmp/                            # SYCL-from-source build (Ollama v0.15.6)
+│   ├── Dockerfile                  # Multi-stage: oneAPI build → minimal runtime
+│   ├── patch-sycl.py               # Patches ggml-sycl for Ollama API compatibility
+│   ├── docker-compose.yml          # Compose file for the SYCL source build
+│   ├── start-ollama.sh             # Legacy entrypoint (from IPEX-LLM era)
+│   └── test-glm-ocr.sh            # Vision model test script (glm-ocr)
+│
+├── comfyui/Dockerfile              # ComfyUI with Intel Extension for PyTorch
+├── sdnext/Dockerfile               # SD.Next with Intel Extension for PyTorch
+├── whisper/Dockerfile              # OpenAI Whisper with Intel Extension for PyTorch
+├── ramalama/Dockerfile             # RamaLama container
+│
+├── docs/
+│   ├── sycl-vs-vulkan.md           # SYCL vs Vulkan backend comparison
+│   └── intel-arc-a770-context-limits.md  # VRAM & context length guide
+│
+└── resources/                      # Screenshots for README
+```
+
 ## My development environment:
 * Core Ultra 7 155H
 * Intel® Arc™ Graphics (Meteor Lake-P)
