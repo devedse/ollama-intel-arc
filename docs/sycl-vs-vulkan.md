@@ -58,7 +58,7 @@ Builds `ggml-sycl` from the exact llama.cpp commit that Ollama vendors, using In
 
 #### How the Source Build Works
 
-Ollama ships the `ggml-sycl.h` header but intentionally excludes the SYCL implementation from its vendored ggml. The source build fills that gap. See [`ollama-sycl/Dockerfile`](../ollama-sycl/Dockerfile) for the full multi-stage build.
+Ollama ships the `ggml-sycl.h` header but intentionally excludes the SYCL implementation from its vendored ggml. The source build fills that gap. See [`sycl-ollama/Dockerfile`](../sycl-ollama/Dockerfile) for the full multi-stage build.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -78,7 +78,7 @@ Ollama ships the `ggml-sycl.h` header but intentionally excludes the SYCL implem
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Stage 1 — Build** (from [`ollama-sycl/Dockerfile`](../ollama-sycl/Dockerfile)):
+**Stage 1 — Build** (from [`sycl-ollama/Dockerfile`](../sycl-ollama/Dockerfile)):
 
 Clone Ollama and fetch the matching `ggml-sycl` source:
 
@@ -99,7 +99,7 @@ RUN git clone --depth 1 --branch v${OLLAMA_VERSION} \
       /ollama/ml/backend/ggml/ggml/src/ggml-sycl
 ```
 
-Apply the API compatibility patches with [`patch-sycl.py`](../ollama-sycl/patch-sycl.py):
+Apply the API compatibility patches with [`patch-sycl.py`](../sycl-ollama/patch-sycl.py):
 
 ```dockerfile
 COPY patch-sycl.py /tmp/patch-sycl.py
@@ -167,7 +167,7 @@ The result is a standard Ollama install that transparently uses the SYCL backend
 
 To track a new Ollama release:
 
-1. Update `OLLAMA_VERSION` in `ollama-sycl/Dockerfile`
+1. Update `OLLAMA_VERSION` in `sycl-ollama/Dockerfile`
 2. Find the ggml commit Ollama vendors: `git log --oneline ollama/ml/backend/ggml/ggml/` in the Ollama source
 3. Update `GGML_COMMIT` to match
 4. Rebuild — `patch-sycl.py` will verify the patches still apply, and exit with an error if they don't
