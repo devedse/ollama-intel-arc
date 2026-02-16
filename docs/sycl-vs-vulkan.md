@@ -41,7 +41,7 @@ Uses [`ipex-ollama/Dockerfile`](../ipex-ollama/Dockerfile) with the IPEX-LLM por
 | Ollama version | v0.9.3 |
 | Backend | SYCL (IPEX-LLM patched llama.cpp) |
 | Build time | ~2 min (download only) |
-| Image size | ~1.5 GB |
+| Image size | **1.03 GB** |
 | Status | Archived (Jan 2026), no further updates |
 
 ### Option 2: SYCL from Source (advanced)
@@ -52,8 +52,8 @@ Builds `ggml-sycl` from the exact llama.cpp commit that Ollama vendors, using In
 |---|---|
 | Ollama version | v0.16.1+ |
 | Backend | SYCL (ggml-sycl built from source) |
-| Build time | ~10–15 min (compiles C++ with icpx) |
-| Image size | ~2.5 GB |
+| Build time | ~90 s (compiles C++ with icpx) |
+| Image size | **1.27 GB** |
 | Status | Actively maintainable |
 
 #### How the Source Build Works
@@ -183,7 +183,7 @@ Uses the official `ollama/ollama` Docker image with Vulkan enabled.
 | Ollama version | v0.16.1 (latest) |
 | Backend | Vulkan |
 | Build time | None (pre-built image) |
-| Image size | ~1 GB |
+| Image size | **5.63 GB** (includes CUDA runners) |
 | Status | Actively maintained by Ollama team |
 
 ```bash
@@ -195,6 +195,17 @@ docker run -d \
   -v ollama-data:/root/.ollama \
   ollama/ollama:latest
 ```
+
+## Image Size Comparison
+
+| Image | Size | Notes |
+|---|---|---|
+| **ipex-ollama** (this repo) | **1.03 GB** | IPEX-LLM bundle, smallest |
+| **sycl-ollama** (this repo) | **1.27 GB** | SYCL from source + stripped oneAPI libs |
+| `ollama/ollama:latest` | 5.63 GB | Upstream, includes CUDA/ROCm/Vulkan runners |
+| `intelanalytics/ipex-llm-inference-cpp-xpu` | 19.9 GB | Intel's full base image |
+
+Both custom images are **4–15x smaller** than alternatives because they include only the Intel GPU runtime libraries needed for SYCL inference, with no CUDA/ROCm/Vulkan overhead.
 
 ## Troubleshooting
 
