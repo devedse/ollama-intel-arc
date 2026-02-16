@@ -78,14 +78,90 @@ Ollama ships the `ggml-sycl.h` header but intentionally excludes the SYCL implem
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Stage 1** clones the Ollama source and fetches `ggml-sycl` from the **exact llama.cpp commit** (`a5bb8ba4`) that Ollama vendors, ensuring ABI compatibility. Then [`patch-sycl.py`](../tmp/patch-sycl.py) applies two fixes:
+**Stage 1 — Build** (from [`tmp/Dockerfile`](../tmp/Dockerfile)):
+
+Clone Ollama and fetch the matching `ggml-sycl` source:
+
+```dockerfile
+FROM intel/oneapi-basekit:2025.1.1-0-devel-ubuntu24.04 AS sycl-builder
+
+ARG OLLAMA_VERSION=0.15.6
+ARG GGML_COMMIT=a5bb8ba4c50257437630c136210396810741bbf7
+
+RUN git clone --depth 1 --branch v${OLLAMA_VERSION} \
+      https://github.com/ollama/ollama.git /ollama && \
+    git init /tmp/llama.cpp && cd /tmp/llama.cpp && \
+    git remote add origin https://github.com/ggml-org/llama.cpp.git && \
+    git sparse-checkout set ggml/src/ggml-sycl && \
+    git fetch --depth 1 origin ${GGML_COMMIT} && \
+    git checkout FETCH_HEAD && \
+    cp -r /tmp/llama.cpp/ggml/src/ggml-sycl \
+      /ollama/ml/backend/ggml/ggml/src/ggml-sycl
+```
+
+Apply the API compatibility patches with [`patch-sycl.py`](../tmp/patch-sycl.py):
+
+```dockerfile
+COPY patch-sycl.py /tmp/patch-sycl.py
+RUN python3 /tmp/patch-sycl.py ml/backend/ggml/ggml/src/ggml-sycl/ggml-sycl.cpp
+```
+
+The patch fixes two Ollama-specific API divergences:
 
 1. **`graph_compute` signature** — Ollama adds an `int batch_size` parameter not present upstream. The patch adds the parameter and a `GGML_UNUSED(batch_size)` to suppress warnings.
 2. **`GGML_TENSOR_FLAG_COMPUTE` removal** — Ollama drops this enum from `ggml.h`. Without the patch, the flag check in the compute loop evaluates to false for every node (since the bit is never set), causing **all compute nodes to be skipped** and producing garbage output.
 
-After patching, `cmake` builds `libggml-sycl.so` using Intel's `icpx` compiler with `GGML_SYCL=ON`. The build collects the compiled library plus oneAPI runtime dependencies (SYCL runtime, oneMKL, oneDNN, TBB, Level-Zero adapters) into a minimal `/sycl-runner` directory.
+Build the SYCL backend library:
 
-**Stage 2** starts from a clean `ubuntu:24.04`, installs the Intel GPU drivers (same versions as [`ipex-ollama/Dockerfile`](../ipex-ollama/Dockerfile)), downloads the official Ollama binary, and copies in the SYCL runner from Stage 1. The result is a standard Ollama install that transparently uses the SYCL backend for Intel GPUs.
+```dockerfile
+RUN cmake -B build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER=icx \
+      -DCMAKE_CXX_COMPILER=icpx \
+      -DGGML_SYCL=ON \
+      -DGGML_SYCL_TARGET=INTEL \
+      -DOLLAMA_RUNNER_DIR=sycl && \
+    cmake --build build --parallel $(nproc) --target ggml-sycl
+```
+
+Collect runtime dependencies (oneAPI libs are ~800 MB in the SDK but only ~200 MB stripped):
+
+```dockerfile
+RUN mkdir -p /sycl-runner && \
+    cp build/lib/ollama/libggml-sycl.so /sycl-runner/ && \
+    cp /opt/intel/oneapi/compiler/latest/lib/libsycl.so* /sycl-runner/ && \
+    cp /opt/intel/oneapi/mkl/latest/lib/libmkl_core.so* /sycl-runner/ && \
+    cp /opt/intel/oneapi/mkl/latest/lib/libmkl_intel_ilp64.so* /sycl-runner/ && \
+    cp /opt/intel/oneapi/mkl/latest/lib/libmkl_sycl_blas.so* /sycl-runner/ && \
+    # ... TBB, oneDNN, Unified Runtime, compiler runtime ...
+    strip --strip-unneeded /sycl-runner/*.so*
+```
+
+**Stage 2 — Runtime:**
+
+```dockerfile
+FROM ubuntu:24.04
+
+# Install Intel GPU drivers (Level-Zero, IGC, compute-runtime)
+# ... same as ipex-ollama/Dockerfile ...
+
+# Install official ollama binary (skip CUDA/Vulkan runners)
+ARG OLLAMA_VERSION=0.15.6
+RUN wget -qO- "https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst" | \
+    zstd -d | tar -xf - -C /usr && \
+    rm -rf /usr/lib/ollama/cuda_* /usr/lib/ollama/mlx_* /usr/lib/ollama/vulkan
+
+# Drop in the SYCL runner from Stage 1
+COPY --from=sycl-builder /sycl-runner/ /usr/lib/ollama/sycl/
+
+ENV OLLAMA_HOST=0.0.0.0:11434
+ENV ONEAPI_DEVICE_SELECTOR=level_zero:0
+
+ENTRYPOINT ["/usr/bin/ollama"]
+CMD ["serve"]
+```
+
+The result is a standard Ollama install that transparently uses the SYCL backend for Intel GPUs. Ollama auto-discovers `libggml-sycl.so` in its runner directory.
 
 #### Updating to a New Ollama Version
 
