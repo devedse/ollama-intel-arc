@@ -1,103 +1,85 @@
+# syntax=docker/dockerfile:1.4
 FROM ubuntu:24.04
+
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=America/Los_Angeles
 
-# Base packages
-RUN apt-get update && \
+# ── Version pins (bump these ARGs to update) ─────────────────────────
+ARG LEVEL_ZERO_VERSION=1.28.0
+ARG IGC_VERSION=2.28.4
+ARG IGC_BUILD=20760
+ARG COMPUTE_RUNTIME_VERSION=26.05.37020.3
+ARG GMMLIB_VERSION=22.9.0
+ARG IPEXLLM_BUNDLE=ollama-ipex-llm-2.3.0b20250725-ubuntu.tgz
+
+# ── Base packages ─────────────────────────────────────────────────────
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt/lists \
+    apt-get update && \
     apt-get install --no-install-recommends -q -y \
       software-properties-common \
       ca-certificates \
       wget \
-      ocl-icd-libopencl1 && \
-    rm -rf /var/lib/apt/lists/*
+      ocl-icd-libopencl1
 
-# Intel GPU runtimes (release 25.18.33578.6)
-RUN mkdir -p /tmp/gpu && cd /tmp/gpu && \
-    wget https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u24.04_amd64.deb && \
-    wget https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-core-2_2.11.7+19146_amd64.deb && \
-    wget https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-opencl-2_2.11.7+19146_amd64.deb && \
-    wget https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-ocloc-dbgsym_25.18.33578.6-0_amd64.ddeb && \
-    wget https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-ocloc_25.18.33578.6-0_amd64.deb && \
-    wget https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-opencl-icd_25.18.33578.6-0_amd64.deb && \
-    wget https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libigdgmm12_22.7.0_amd64.deb && \
-    wget https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libze-intel-gpu1_25.18.33578.6-0_amd64.deb && \
-    dpkg -i *.deb *.ddeb && rm -rf /tmp/gpu
+# ── Intel GPU runtimes ────────────────────────────────────────────────
+# Sources: compute-runtime, level-zero, IGC — see release notes at
+#   https://github.com/intel/compute-runtime/releases/tag/${COMPUTE_RUNTIME_VERSION}
+RUN --mount=type=cache,target=/tmp/dl-gpu \
+    cd /tmp/dl-gpu && \
+    wget -nc https://github.com/oneapi-src/level-zero/releases/download/v${LEVEL_ZERO_VERSION}/level-zero_${LEVEL_ZERO_VERSION}+u24.04_amd64.deb && \
+    wget -nc https://github.com/intel/intel-graphics-compiler/releases/download/v${IGC_VERSION}/intel-igc-core-2_${IGC_VERSION}+${IGC_BUILD}_amd64.deb && \
+    wget -nc https://github.com/intel/intel-graphics-compiler/releases/download/v${IGC_VERSION}/intel-igc-opencl-2_${IGC_VERSION}+${IGC_BUILD}_amd64.deb && \
+    wget -nc https://github.com/intel/compute-runtime/releases/download/${COMPUTE_RUNTIME_VERSION}/intel-ocloc-dbgsym_${COMPUTE_RUNTIME_VERSION}-0_amd64.ddeb && \
+    wget -nc https://github.com/intel/compute-runtime/releases/download/${COMPUTE_RUNTIME_VERSION}/intel-ocloc_${COMPUTE_RUNTIME_VERSION}-0_amd64.deb && \
+    wget -nc https://github.com/intel/compute-runtime/releases/download/${COMPUTE_RUNTIME_VERSION}/intel-opencl-icd_${COMPUTE_RUNTIME_VERSION}-0_amd64.deb && \
+    wget -nc https://github.com/intel/compute-runtime/releases/download/${COMPUTE_RUNTIME_VERSION}/libigdgmm12_${GMMLIB_VERSION}_amd64.deb && \
+    wget -nc https://github.com/intel/compute-runtime/releases/download/${COMPUTE_RUNTIME_VERSION}/libze-intel-gpu1_${COMPUTE_RUNTIME_VERSION}-0_amd64.deb && \
+    mkdir -p /tmp/gpu-install && cp *.deb *.ddeb /tmp/gpu-install/ && \
+    cd /tmp/gpu-install && dpkg -i *.deb *.ddeb && \
+    rm -rf /tmp/gpu-install
 
-# Install IPEX-LLM Portable Zip (ollama bundle v2.3.0-nightly)
-RUN cd / && \
-    wget https://github.com/ipex-llm/ipex-llm/releases/download/v2.3.0-nightly/ollama-ipex-llm-2.3.0b20250612-ubuntu.tgz && \
-    tar xvf ollama-ipex-llm-2.3.0b20250612-ubuntu.tgz --strip-components=1 -C / && \
-    rm ollama-ipex-llm-2.3.0b20250612-ubuntu.tgz
+# ── IPEX-LLM portable zip (ollama bundle, ollama v0.9.3) ─────────────
+# https://github.com/ipex-llm/ipex-llm/releases/tag/v2.3.0-nightly
+RUN --mount=type=cache,target=/tmp/dl-ipex \
+    cd /tmp/dl-ipex && \
+    wget -nc https://github.com/ipex-llm/ipex-llm/releases/download/v2.3.0-nightly/${IPEXLLM_BUNDLE} && \
+    tar xf ${IPEXLLM_BUNDLE} --strip-components=1 -C /
 
-# Clean up any temporary files
-RUN apt-get clean && \
+# ── Cleanup (same layer = actually reduces image size) ────────────────
+RUN apt-get purge -y --auto-remove software-properties-common && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-    && find /var/log -type f -exec rm -f {} \; \
-    && rm -rf /var/log/*-old \
-    && rm -rf /var/log/apt/* \
-    && rm -rf /var/log/dpkg.log* \
-    && rm -rf /var/log/alternatives.log \
-    && rm -rf /var/log/installer/* \
-    && rm -rf /var/log/unattended-upgrades/* \
-    && apt autoremove -y --purge \
-    && apt-get autoclean -y \
-    && rm -rf /tmp/* /var/tmp/*
+           /var/log/*.log /var/log/apt/* /var/log/dpkg.log*
 
-# Best practices
+# ══════════════════════════════════════════════════════════════════════
+# Runtime environment — Ollama server defaults
+# See docs/intel-arc-a770-context-limits.md for VRAM / context guidance
+# ══════════════════════════════════════════════════════════════════════
 
-# Save model for faster loading
-ENV OLLAMA_DEFAULT_KEEPALIVE=6h
-
-# Keep models loaded in memory
-ENV OLLAMA_KEEP_ALIVE=24h
-
-# Load models in parallel
+# Ollama server behaviour
+ENV OLLAMA_HOST=0.0.0.0:11434
 ENV OLLAMA_NUM_PARALLEL=1
 ENV OLLAMA_MAX_LOADED_MODELS=1
-
-# Set bigger queue and VRAM for better performance
 ENV OLLAMA_MAX_QUEUE=512
-ENV OLLAMA_MAX_VRAM=0
+ENV OLLAMA_DEFAULT_KEEPALIVE=6h
+ENV OLLAMA_KEEP_ALIVE=24h
 
-# Serve ollama on all interfaces
-ENV OLLAMA_HOST=0.0.0.0:11434
-
-# Set ollama to use the Intel GPU
+# GPU layer offloading (999 = all layers on GPU)
 ENV OLLAMA_NUM_GPU=999
 
-
-## # Available low_bit format including sym_int4, sym_int8, fp16 etc.
+# Intel IPEX-LLM / SYCL / Arc GPU tuning
+# https://github.com/intel/ipex-llm/blob/main/docs/mddocs/Quickstart/fastchat_quickstart.md
 ENV USE_XETLA=OFF
 ENV ZES_ENABLE_SYSMAN=1
-
-# Set ollama to use the Intel GPU
-# Set ollama to use the Intel GPU with IPEX-LLM
-ENV OLLAMA_USE_IPEX=1
-# Set ollama to use the Intel GPU with IPEX-LLM and SYCL
-ENV OLLAMA_USE_IPEX_SYCL=1
-# Set ollama to use the Intel GPU with IPEX-LLM and SYCL and Level Zero
-ENV OLLAMA_USE_IPEX_SYCL_ZE=1
-# Set ollama to use the Intel GPU with IPEX-LLM and SYCL and Level Zero and XETLA
-ENV OLLAMA_USE_IPEX_SYCL_ZE_XETLA=1
-
-# # Available low_bit format including sym_int4, sym_int8, fp16 etc.
-ENV USE_XETLA=OFF
-ENV ZES_ENABLE_SYSMAN=1
-
-# Add some intel specific adjustments
-#  https://github.com/intel/ipex-llm/blob/main/docs/mddocs/Quickstart/fastchat_quickstart.md
-
 ENV SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1
 ENV ENABLE_SDP_FUSION=1
-
-# [optional] under most circumstances, the following environment variable may improve performance,
-# but sometimes this may also cause performance degradation
 ENV SYCL_CACHE_PERSISTENT=1
 
-# For Intel Core™ Ultra Processors (Series 2) with processor number 2xxK or 2xxH (code name Arrow Lake):
-#- IPEX_LLM_NPU_ARL=1
-
-# For Intel Core™ Ultra Processors (Series 1) with processor number 1xxH (code name Meteor Lake):
-ENV IPEX_LLM_NPU_MTL=1
+# NPU support (disabled by default; set to 1 if your CPU has an NPU)
+# Arrow Lake (Series 2, 2xxK/2xxH):
+# ENV IPEX_LLM_NPU_ARL=1
+# Meteor Lake (Series 1, 1xxH):
+# ENV IPEX_LLM_NPU_MTL=1
 
 ENTRYPOINT ["/bin/bash", "/start-ollama.sh"]

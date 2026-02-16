@@ -14,6 +14,10 @@ All these containers have been optimized for Intel Arc Series GPUs on Linux syst
 
 ![screenshot](resources/open-webui.png)
 
+## Documentation
+
+* **[Intel Arc A770 Context Length & VRAM Guide](docs/intel-arc-a770-context-limits.md)** — how to choose context length, KV cache quantization, and model size for 16 GB Intel Arc GPUs.
+
 ## Services
 1. Ollama  
    * Runs llama.cpp and Ollama with IPEX-LLM on your Linux computer with Intel Arc GPU.  
