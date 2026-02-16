@@ -88,7 +88,7 @@ services:
       - ENABLE_SDP_FUSION=${ENABLE_SDP_FUSION:-1}
         # Impact: Enables fused scaled dot-product attention kernels. Small to moderate speedup in attention-heavy models.
 
-      - SYCL_CACHE_PERSISTENT={SYCL_CACHE_PERSISTENT:-1}
+      - SYCL_CACHE_PERSISTENT=${SYCL_CACHE_PERSISTENT:-1}
         # Impact: Keeps compiled SYCL kernels in persistent cache → significantly faster second+ runs.
         # Rare cases cause compile errors; unset if you see "Build program log" failures.
 
@@ -111,9 +111,44 @@ services:
 
     command: sh -c 'mkdir -p /llm/ollama && cd /llm/ollama && init-ollama && exec ./ollama serve'
 
-  open-webui:  # unchanged from original
-    # ... (same as in your provided file)
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:latest
+    container_name: open-webui
+    volumes:
+      - open-webui-volume:/app/backend/data
+    depends_on:
+      - ollama-intel-arc
+    ports:
+      - 4040:8080
+    environment:
+      - OLLAMA_BASE_URL=http://ollama-intel-arc:11434
+
+      - WEBUI_AUTH=False
+      - ENABLE_OPENAI_API=False
+      - ENABLE_OLLAMA_API=True
+
+      # Image generation (requires SD.Next or ComfyUI running)
+      - ENABLE_IMAGE_GENERATION=True
+      - IMAGE_GENERATION_ENGINE=automatic1111
+      - IMAGE_GENERATION_MODEL=dreamshaper_8
+      - IMAGE_SIZE=400x400
+      - IMAGE_STEPS=8
+      - AUTOMATIC1111_BASE_URL=http://sdnext-ipex:7860/
+      - AUTOMATIC1111_CFG_SCALE=2
+      - AUTOMATIC1111_SAMPLER=DPM++ SDE
+      - AUTOMATIC1111_SCHEDULER=Karras
+
+      # Web search for RAG
+      - ENABLE_RAG_WEB_SEARCH=True
+
+      # Telemetry opt-out
+      - SCARF_NO_ANALYTICS=true
+      - DO_NOT_TRACK=true
+      - ANONYMIZED_TELEMETRY=false
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    restart: unless-stopped
 
 volumes:
-  ollama-volume:
-  open-webui-volume:
+  ollama-volume: {}
+  open-webui-volume: {}
