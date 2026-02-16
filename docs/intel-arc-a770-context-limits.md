@@ -136,8 +136,19 @@ OLLAMA_NUM_GPU=999
 
 Or by exporting them before running `docker compose up`.
 
+## Troubleshooting
+
+**OOM / model too large** — reduce `OLLAMA_CONTEXT_LENGTH`, switch `OLLAMA_KV_CACHE_TYPE` to `q4_0`, or use a smaller model quantization (Q4_0, Q4_K_M).
+
+**Slow first inference** — SYCL JIT-compiles GPU kernels on first run. Keep `SYCL_CACHE_PERSISTENT=1` so subsequent runs are fast.
+
+**`UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY`** — known Level-Zero regression on kernel 6.18+. See [SYCL vs Vulkan](sycl-vs-vulkan.md) for workarounds.
+
+**Garbage output / wrong results** — may indicate an ABI mismatch if using a custom SYCL build. See [SYCL vs Vulkan — Troubleshooting](sycl-vs-vulkan.md#troubleshooting).
+
 ## Further Reading
 
+- [SYCL vs Vulkan — GPU Backend Comparison](sycl-vs-vulkan.md)
 - [Ollama context length docs](https://docs.ollama.com/context-length)
 - [Ollama FAQ — flash attention](https://docs.ollama.com/faq#how-can-i-enable-flash-attention)
 - [IPEX-LLM Docker guide](https://github.com/intel/ipex-llm/blob/main/docs/mddocs/DockerGuides/README.md)

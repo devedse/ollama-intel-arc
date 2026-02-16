@@ -14,8 +14,17 @@ All these containers have been optimized for Intel Arc Series GPUs on Linux syst
 
 ![screenshot](resources/open-webui.png)
 
+## Tested Hardware
+
+| Intel GPU | Status |
+|---|---|
+| Core Ultra 7 155H integrated Arc (Meteor Lake) | Verified |
+| Arc A-series (A770, A750, A380) | Expected compatible |
+| Data Center Flex / Max | Expected compatible |
+
 ## Documentation
 
+* **[SYCL vs Vulkan — GPU Backend Comparison](docs/sycl-vs-vulkan.md)** — performance benchmarks (SYCL is 40–100% faster), how the SYCL source build works, backend options, and troubleshooting.
 * **[Intel Arc A770 Context Length & VRAM Guide](docs/intel-arc-a770-context-limits.md)** — how to choose context length, KV cache quantization, and model size for 16 GB Intel Arc GPUs. Includes VRAM budget tables, per-model recommendations, and environment variable reference.
 * **[Custom IPEX-LLM Dockerfile](ipex-ollama/Dockerfile)** — build your own Ollama image from scratch with pinned Intel GPU runtimes (Level Zero, IGC, compute-runtime) and the IPEX-LLM portable bundle. Uses BuildKit cache mounts for fast rebuilds.
 * **[docker-compose.yml](docker-compose.yml)** — fully documented Compose file with env-var driven configuration. All Intel GPU tuning knobs (SYCL, XeTLA, SDP fusion, KV cache, flash attention) are configurable via `${VAR:-default}` syntax and a `.env` file.
