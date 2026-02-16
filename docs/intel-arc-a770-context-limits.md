@@ -99,6 +99,7 @@ These variables can be set in `docker-compose.yml` or as environment variables w
 3. **Flash attention is free performance** — always keep `OLLAMA_FLASH_ATTENTION=1`.
 4. **SYCL persistent cache** saves significant startup time on repeat loads. Only disable if you see SYCL compilation errors.
 5. **Multiple parallel requests** (`OLLAMA_NUM_PARALLEL > 1`) roughly multiply KV cache usage. On 16 GB, keep it at 1 unless using very short context or small models.
+6. **Increase shared memory** — Docker defaults `/dev/shm` to only 64 MB. The SYCL/Level Zero runtime uses shared memory for kernel compilation caches and scratch buffers, and Ollama may memory-map model files through it. Set `shm_size: "16G"` in `docker-compose.yml` (or `--shm-size=16g` with `docker run`). This does **not** pre-allocate memory — it only sets the upper limit. Without it, large models can fail with `SIGBUS` or silent inference errors.
 
 ## Building a Custom Image
 

@@ -13,6 +13,10 @@ services:
     container_name: ollama-intel-arc
     restart: unless-stopped
 
+    shm_size: "16G"                        # Shared memory limit (/dev/shm). Docker defaults to 64 MB which is too small
+                                           # for SYCL kernel caches, Level Zero buffers, and memory-mapped model loading.
+                                           # Does NOT pre-allocate — only sets the upper bound. Match your RAM or VRAM.
+
     devices:
       - /dev/dri:/dev/dri                 # Required: maps Intel GPU render & card nodes for SYCL / Level Zero access
 
