@@ -100,9 +100,47 @@ These variables can be set in `docker-compose.yml` or as environment variables w
 4. **SYCL persistent cache** saves significant startup time on repeat loads. Only disable if you see SYCL compilation errors.
 5. **Multiple parallel requests** (`OLLAMA_NUM_PARALLEL > 1`) roughly multiply KV cache usage. On 16 GB, keep it at 1 unless using very short context or small models.
 
+## Building a Custom Image
+
+Instead of using the upstream `intelanalytics/ipex-llm-inference-cpp-xpu` image, you can build a custom image with pinned Intel GPU runtime versions using the [`ipex-ollama/Dockerfile`](../ipex-ollama/Dockerfile).
+
+The Dockerfile uses BuildKit cache mounts for fast rebuilds and `ARG` version pins at the top:
+
+| Component | ARG | Current version |
+|-----------|-----|-----------------|
+| Level Zero | `LEVEL_ZERO_VERSION` | 1.28.0 |
+| Intel Graphics Compiler | `IGC_VERSION` / `IGC_BUILD` | 2.28.4 / 20760 |
+| Compute Runtime | `COMPUTE_RUNTIME_VERSION` | 26.05.37020.3 |
+| GMM Library | `GMMLIB_VERSION` | 22.9.0 |
+| IPEX-LLM Ollama bundle | `IPEXLLM_BUNDLE` | ollama-ipex-llm-2.3.0b20250725 (Ollama v0.9.3) |
+
+To build:
+
+```bash
+docker build -t ipex-ollama:latest ./ipex-ollama/
+```
+
+Then uncomment the `build:` section in [`docker-compose.yml`](../docker-compose.yml) and comment out the `image:` line to use your custom build.
+
+## Configuring via docker-compose
+
+All environment variables in [`docker-compose.yml`](../docker-compose.yml) use `${VAR:-default}` syntax, so you can override them by creating a `.env` file in the project root:
+
+```env
+OLLAMA_CONTEXT_LENGTH=32768
+OLLAMA_KV_CACHE_TYPE=q8_0
+OLLAMA_FLASH_ATTENTION=1
+OLLAMA_NUM_GPU=999
+```
+
+Or by exporting them before running `docker compose up`.
+
 ## Further Reading
 
 - [Ollama context length docs](https://docs.ollama.com/context-length)
 - [Ollama FAQ — flash attention](https://docs.ollama.com/faq#how-can-i-enable-flash-attention)
 - [IPEX-LLM Docker guide](https://github.com/intel/ipex-llm/blob/main/docs/mddocs/DockerGuides/README.md)
 - [Intel compute-runtime releases](https://github.com/intel/compute-runtime/releases)
+- [Level Zero releases](https://github.com/oneapi-src/level-zero/releases)
+- [Intel Graphics Compiler releases](https://github.com/intel/intel-graphics-compiler/releases)
+- [IPEX-LLM Ollama portable bundles](https://github.com/ipex-llm/ipex-llm/releases/tag/v2.3.0-nightly)
