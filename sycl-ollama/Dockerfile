@@ -3,24 +3,44 @@
 # =============================================================================
 FROM intel/oneapi-basekit:2025.1.1-0-devel-ubuntu24.04 AS sycl-builder
 
-ARG OLLAMA_VERSION=0.16.1
+ARG OLLAMA_VERSION=0.17.7
 
-# Clone ollama source and the MATCHING ggml-sycl source from upstream llama.cpp.
-# ollama v0.16.1 vendors ggml at commit ec98e200 (tag b7437) — we MUST use the
-# same commit to ensure struct layouts, operation enums, and internal APIs match.
-# (ollama excludes ggml-sycl from its vendored ggml, but keeps the header)
-ARG GGML_COMMIT=ec98e20021f7611db3bbcf6bb6629fed6e1ce4f0
+# Clone ollama source and fetch the ggml-sycl backend from upstream llama.cpp.
+# ollama excludes ggml-sycl from its vendored ggml, so we fetch it separately.
+#
+# GGML_COMMIT logic:
+#   - If ggml-sycl already exists in ollama source (future versions) → skip fetch
+#   - If GGML_COMMIT is explicitly set → fetch that exact commit (pinned build)
+#   - If GGML_COMMIT is empty (default) → fetch latest llama.cpp HEAD
+#
+# The patch-sycl.py script handles any remaining API differences.
+ARG GGML_COMMIT=
 RUN git clone --depth 1 --branch v${OLLAMA_VERSION} \
   https://github.com/ollama/ollama.git /ollama && \
-  git init /tmp/llama.cpp && \
-  cd /tmp/llama.cpp && \
-  git remote add origin https://github.com/ggml-org/llama.cpp.git && \
-  git sparse-checkout set ggml/src/ggml-sycl && \
-  git fetch --depth 1 origin ${GGML_COMMIT} && \
-  git checkout FETCH_HEAD && \
-  cp -r /tmp/llama.cpp/ggml/src/ggml-sycl \
-  /ollama/ml/backend/ggml/ggml/src/ggml-sycl && \
-  rm -rf /tmp/llama.cpp
+  if [ -d "/ollama/ml/backend/ggml/ggml/src/ggml-sycl" ] && \
+     [ -n "$(ls -A /ollama/ml/backend/ggml/ggml/src/ggml-sycl 2>/dev/null)" ]; then \
+    echo "ggml-sycl already present in ollama source tree — skipping fetch"; \
+  elif [ -n "${GGML_COMMIT}" ]; then \
+    echo "Fetching ggml-sycl at pinned commit ${GGML_COMMIT}" && \
+    git init /tmp/llama.cpp && \
+    cd /tmp/llama.cpp && \
+    git remote add origin https://github.com/ggml-org/llama.cpp.git && \
+    git sparse-checkout set ggml/src/ggml-sycl && \
+    git fetch --depth 1 origin ${GGML_COMMIT} && \
+    git checkout FETCH_HEAD && \
+    cp -r /tmp/llama.cpp/ggml/src/ggml-sycl \
+      /ollama/ml/backend/ggml/ggml/src/ggml-sycl && \
+    rm -rf /tmp/llama.cpp; \
+  else \
+    echo "Fetching ggml-sycl from latest llama.cpp HEAD" && \
+    git clone --depth 1 --filter=blob:none --sparse \
+      https://github.com/ggml-org/llama.cpp.git /tmp/llama.cpp && \
+    cd /tmp/llama.cpp && \
+    git sparse-checkout set ggml/src/ggml-sycl && \
+    cp -r ggml/src/ggml-sycl \
+      /ollama/ml/backend/ggml/ggml/src/ggml-sycl && \
+    rm -rf /tmp/llama.cpp; \
+  fi
 
 WORKDIR /ollama
 
@@ -106,7 +126,7 @@ RUN mkdir -p /tmp/gpu && cd /tmp/gpu && \
   dpkg -i *.deb *.ddeb && rm -rf /tmp/gpu
 
 # Install official ollama binary + CPU runners (skip CUDA/MLX/Vulkan)
-ARG OLLAMA_VERSION=0.16.1
+ARG OLLAMA_VERSION=0.17.7
 RUN wget -qO- "https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst" | \
   zstd -d | tar -xf - -C /usr && \
   rm -rf /usr/lib/ollama/cuda_* /usr/lib/ollama/mlx_* /usr/lib/ollama/vulkan
