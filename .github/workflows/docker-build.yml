@@ -68,9 +68,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # On main: tag as "latest" and the resolved Ollama version
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=${{ steps.ollama.outputs.version }},enable=${{ github.ref == 'refs/heads/main' }}
+            # Tag as "latest" and the resolved Ollama version
+            type=raw,value=latest,enable=${{ github.event_name != 'pull_request' }}
+            type=raw,value=${{ steps.ollama.outputs.version }},enable=${{ github.event_name != 'pull_request' }}
             # Branch name (for feature branch builds)
             type=ref,event=branch
             # PR number
