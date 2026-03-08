@@ -89,5 +89,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             OLLAMA_VERSION=${{ steps.ollama.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
