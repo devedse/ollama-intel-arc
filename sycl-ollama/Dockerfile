@@ -11,7 +11,8 @@ ARG OLLAMA_VERSION=0.17.7
 # GGML_COMMIT logic:
 #   - If ggml-sycl already exists in ollama source (future versions) → skip fetch
 #   - If GGML_COMMIT is explicitly set → fetch that exact commit (pinned build)
-#   - If GGML_COMMIT is empty (default) → fetch latest llama.cpp HEAD
+#   - If GGML_COMMIT is empty (default) → auto-detect a compatible commit using
+#     the ollama release date as an upper bound (via GitHub API)
 #
 # The patch-sycl.py script handles any remaining API differences.
 ARG GGML_COMMIT=
@@ -32,12 +33,21 @@ RUN git clone --depth 1 --branch v${OLLAMA_VERSION} \
       /ollama/ml/backend/ggml/ggml/src/ggml-sycl && \
     rm -rf /tmp/llama.cpp; \
   else \
-    echo "Fetching ggml-sycl from latest llama.cpp HEAD" && \
-    git clone --depth 1 --filter=blob:none --sparse \
-      https://github.com/ggml-org/llama.cpp.git /tmp/llama.cpp && \
+    echo "Auto-detecting compatible ggml-sycl for ollama v${OLLAMA_VERSION}" && \
+    OLLAMA_DATE=$(cd /ollama && git log -1 --format=%cI) && \
+    echo "Ollama v${OLLAMA_VERSION} date: ${OLLAMA_DATE}" && \
+    COMPAT_COMMIT=$(python3 -c "import json,urllib.request,sys; \
+      url='https://api.github.com/repos/ggml-org/llama.cpp/commits?path=ggml/src/ggml-sycl&until='+sys.argv[1]+'&per_page=1'; \
+      data=json.loads(urllib.request.urlopen(url).read()); \
+      print(data[0]['sha'])" "${OLLAMA_DATE}") && \
+    echo "Using llama.cpp ggml-sycl commit: ${COMPAT_COMMIT}" && \
+    git init /tmp/llama.cpp && \
     cd /tmp/llama.cpp && \
+    git remote add origin https://github.com/ggml-org/llama.cpp.git && \
     git sparse-checkout set ggml/src/ggml-sycl && \
-    cp -r ggml/src/ggml-sycl \
+    git fetch --depth 1 origin ${COMPAT_COMMIT} && \
+    git checkout FETCH_HEAD && \
+    cp -r /tmp/llama.cpp/ggml/src/ggml-sycl \
       /ollama/ml/backend/ggml/ggml/src/ggml-sycl && \
     rm -rf /tmp/llama.cpp; \
   fi

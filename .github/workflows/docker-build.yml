@@ -41,6 +41,32 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "### Ollama version: ${VERSION}" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Determine compatible ggml-sycl commit
+        id: ggml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OLLAMA_VERSION="${{ steps.ollama.outputs.version }}"
+
+          # Get the release date of this Ollama version
+          OLLAMA_DATE=$(curl -sL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/ollama/ollama/releases/tags/v${OLLAMA_VERSION}" \
+            | jq -r '.published_at')
+
+          echo "Ollama v${OLLAMA_VERSION} released: ${OLLAMA_DATE}"
+
+          # Find the latest llama.cpp commit that touched ggml-sycl before the ollama release.
+          # This ensures the ggml-sycl code is compatible with ollama's vendored ggml headers.
+          GGML_COMMIT=$(curl -sL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/ggml-org/llama.cpp/commits?path=ggml/src/ggml-sycl&until=${OLLAMA_DATE}&per_page=1" \
+            | jq -r '.[0].sha')
+
+          echo "Compatible ggml-sycl commit: ${GGML_COMMIT}"
+          echo "commit=${GGML_COMMIT}" >> "$GITHUB_OUTPUT"
+          echo "### ggml-sycl commit: \`${GGML_COMMIT}\`" >> "$GITHUB_STEP_SUMMARY"
+
       # The sycl-ollama build (oneAPI + compile) needs significant disk space.
       # Free up space on the GitHub runner to avoid running out during build.
       - name: Free disk space
@@ -89,3 +115,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             OLLAMA_VERSION=${{ steps.ollama.outputs.version }}
+            GGML_COMMIT=${{ steps.ggml.outputs.commit }}
