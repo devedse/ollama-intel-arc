@@ -43,29 +43,46 @@ jobs:
 
       - name: Determine compatible ggml-sycl commit
         id: ggml
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           OLLAMA_VERSION="${{ steps.ollama.outputs.version }}"
 
-          # Get the release date of this Ollama version
-          OLLAMA_DATE=$(curl -sL \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            "https://api.github.com/repos/ollama/ollama/releases/tags/v${OLLAMA_VERSION}" \
-            | jq -r '.published_at')
+          # Clone ollama to inspect its vendored ggml headers
+          git clone --depth 1 --branch "v${OLLAMA_VERSION}" \
+            https://github.com/ollama/ollama.git /tmp/ollama
 
-          echo "Ollama v${OLLAMA_VERSION} released: ${OLLAMA_DATE}"
+          # Compute blob hashes of the ggml headers that define the API surface.
+          # We need these to match: ggml.h has enums/ops, ggml-common.h has types.
+          GGML_H_HASH=$(git hash-object /tmp/ollama/ml/backend/ggml/ggml/include/ggml.h)
+          COMMON_H_HASH=$(git hash-object /tmp/ollama/ml/backend/ggml/ggml/src/ggml-common.h)
+          echo "ggml.h blob: ${GGML_H_HASH}"
+          echo "ggml-common.h blob: ${COMMON_H_HASH}"
 
-          # Find the latest llama.cpp commit that touched ggml-sycl before the ollama release.
-          # This ensures the ggml-sycl code is compatible with ollama's vendored ggml headers.
-          GGML_COMMIT=$(curl -sL \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            "https://api.github.com/repos/ggml-org/llama.cpp/commits?path=ggml/src/ggml-sycl&until=${OLLAMA_DATE}&per_page=1" \
-            | jq -r '.[0].sha')
+          # Clone llama.cpp tree history (blobless = fast, no file content downloaded)
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/ggml-org/llama.cpp.git /tmp/llama
+
+          # Find the most recent llama.cpp commit where both headers are byte-identical
+          # to ollama's vendored copies. This guarantees ggml-sycl API compatibility.
+          GGML_COMMIT=""
+          for commit in $(git -C /tmp/llama log --format=%H -500 \
+              -- ggml/include/ggml.h ggml/src/ggml-common.h); do
+            b1=$(git -C /tmp/llama ls-tree "$commit" -- ggml/include/ggml.h 2>/dev/null | awk '{print $3}')
+            b2=$(git -C /tmp/llama ls-tree "$commit" -- ggml/src/ggml-common.h 2>/dev/null | awk '{print $3}')
+            if [ "$b1" = "$GGML_H_HASH" ] && [ "$b2" = "$COMMON_H_HASH" ]; then
+              GGML_COMMIT="$commit"
+              break
+            fi
+          done
+
+          if [ -z "$GGML_COMMIT" ]; then
+            echo "::error::Could not find a compatible llama.cpp commit for ollama v${OLLAMA_VERSION}"
+            exit 1
+          fi
 
           echo "Compatible ggml-sycl commit: ${GGML_COMMIT}"
           echo "commit=${GGML_COMMIT}" >> "$GITHUB_OUTPUT"
           echo "### ggml-sycl commit: \`${GGML_COMMIT}\`" >> "$GITHUB_STEP_SUMMARY"
+          rm -rf /tmp/ollama /tmp/llama
 
       # The sycl-ollama build (oneAPI + compile) needs significant disk space.
       # Free up space on the GitHub runner to avoid running out during build.
