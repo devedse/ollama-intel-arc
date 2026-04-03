@@ -39,6 +39,7 @@ jobs:
             VERSION=$(curl -sL https://api.github.com/repos/ollama/ollama/releases/latest | jq -r '.tag_name' | sed 's/^v//')
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved Ollama version: ${VERSION}"
           echo "### Ollama version: ${VERSION}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Determine compatible ggml-sycl commit
