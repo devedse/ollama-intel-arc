@@ -95,14 +95,15 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive \
   TZ=America/Los_Angeles
 
-# Base packages
+# Base packages + Vulkan ICD for Intel GPUs (Mesa ANV driver)
 RUN apt-get update && \
   apt-get install --no-install-recommends -q -y \
   ca-certificates \
   wget \
   zstd \
   ocl-icd-libopencl1 \
-  libhwloc15 && \
+  libhwloc15 \
+  mesa-vulkan-drivers && \
   rm -rf /var/lib/apt/lists/*
 
 # Intel GPU runtimes (release 26.05.37020.3)
@@ -118,11 +119,13 @@ RUN mkdir -p /tmp/gpu && cd /tmp/gpu && \
   wget https://github.com/intel/compute-runtime/releases/download/26.05.37020.3/libze-intel-gpu1_26.05.37020.3-0_amd64.deb && \
   dpkg -i *.deb *.ddeb && rm -rf /tmp/gpu
 
-# Install official ollama binary + CPU runners (skip CUDA/MLX/Vulkan)
+# Install official ollama binary + CPU/Vulkan runners (skip CUDA/MLX)
+# Vulkan runner is kept for Intel GPU support alongside SYCL.
+# Control backend selection via OLLAMA_LLM_LIBRARY env var (vulkan or sycl).
 ARG OLLAMA_VERSION=0.17.7
 RUN wget -qO- "https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst" | \
   zstd -d | tar -xf - -C /usr && \
-  rm -rf /usr/lib/ollama/cuda_* /usr/lib/ollama/mlx_* /usr/lib/ollama/vulkan
+  rm -rf /usr/lib/ollama/cuda_* /usr/lib/ollama/mlx_*
 
 # Install SYCL runner from build stage
 COPY --from=sycl-builder /sycl-runner/ /usr/lib/ollama/sycl/
