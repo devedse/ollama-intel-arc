@@ -40,11 +40,10 @@ RUN git clone --depth 1 --branch v${OLLAMA_VERSION} \
 
 WORKDIR /ollama
 
-# Apply API compatibility patches if needed.
-# The patch script handles known API differences between upstream ggml-sycl
-# and ollama's vendored ggml (e.g. batch_size parameter, removed flags).
-# Exits gracefully (code 0) when no changes are needed.
-RUN python3 /tmp/patch-sycl.py ml/backend/ggml/ggml/src/ggml-sycl/ggml-sycl.cpp
+# Apply API compatibility patches and upstream bug fixes.
+# Handles known API differences (batch_size, removed flags) and adds
+# BF16 GET_ROWS support (upstream PR #21391) until it's merged.
+RUN python3 /tmp/patch-sycl.py ml/backend/ggml/ggml/src/ggml-sycl
 
 # Build the SYCL backend as a dynamic library
 # Note: oneAPI env is already set in the base image, no need to source setvars.sh
